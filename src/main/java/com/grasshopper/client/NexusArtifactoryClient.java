@@ -1,11 +1,13 @@
 package com.grasshopper.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grasshopper.core.ApplicationProperties;
+import com.grasshopper.core.search.SearchApiRequest;
 import com.grasshopper.core.search.SearchApiResponse;
+import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.AuthCache;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.protocol.HttpClientContext;
@@ -17,21 +19,30 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
 
 public class NexusArtifactoryClient implements ArtifactoryClient {
 
+    private final ApplicationProperties properties;
+
     private static final String PROTOCOL = "http";
-    private static final String HOST_NAME = "localhost";
-    private static final int PORT = 8081;
+    private static String hostName;
+    private static int port;
 
     private final CloseableHttpClient client;
     private final HttpHost target;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public NexusArtifactoryClient() {
-        target = new HttpHost(HOST_NAME, 8081, PROTOCOL);
+    public NexusArtifactoryClient(ApplicationProperties applicationProperties) {
+        properties = applicationProperties;
+
+        hostName = applicationProperties.getNexusServerHostname();
+        port = applicationProperties.getNexusServerPort();
+
+        target = new HttpHost(hostName, 8081, PROTOCOL);
 
         client = HttpClientBuilder.create()
                 .setDefaultCredentialsProvider(getCredentialsProvider())
@@ -48,12 +59,34 @@ public class NexusArtifactoryClient implements ArtifactoryClient {
     }
 
     @Override
-    public SearchApiResponse search(String repository, String group, String version) throws URISyntaxException, IOException {
-        var request = buildSearchRequest(repository, group, version);
+    public SearchApiResponse search(SearchApiRequest request) throws URISyntaxException, IOException {
+        var httpGetRequest = buildSearchRequest(request);
+
+        var response = client.execute(target, httpGetRequest, getClientContext());
+
+        return mapper.readValue(EntityUtils.toString(response.getEntity()), SearchApiResponse.class);
+    }
+
+    @Override
+    public void searchAndDownload(SearchApiRequest searchApiRequest, String downloadPathPrefix) throws URISyntaxException, IOException {
+        var request = buildSearchAndDownloadRequest(searchApiRequest);
 
         var response = client.execute(target, request, getClientContext());
 
-        return mapper.readValue(EntityUtils.toString(response.getEntity()), SearchApiResponse.class);
+        InputStream inputStream = response.getEntity().getContent();
+
+        File targetFile = new File(getDownloadPath(
+                downloadPathPrefix,
+                searchApiRequest.getName(),
+                searchApiRequest.getVersion(),
+                searchApiRequest.getMavenExtension()
+        ));
+
+        FileUtils.copyInputStreamToFile(inputStream, targetFile);
+    }
+
+    private String getDownloadPath(String pathPrefix, String name, String version, String extension) {
+        return pathPrefix + name + "." + version + "." + extension;
     }
 
     private CredentialsProvider getCredentialsProvider() {
@@ -65,16 +98,30 @@ public class NexusArtifactoryClient implements ArtifactoryClient {
         return credentialsProvider;
     }
 
-    private HttpGet buildSearchRequest(String repository, String group, String version) throws URISyntaxException {
-        var builder = new URIBuilder()
+    private HttpGet buildSearchAndDownloadRequest(SearchApiRequest request) throws URISyntaxException {
+        var uriBuilder = new URIBuilder()
                 .setScheme(PROTOCOL)
-                .setHost(HOST_NAME)
-                .setPort(PORT)
-                .setPath("/service/rest/v1/search")
-                .addParameter("repository", repository)
-                .addParameter("group", group)
-                .addParameter("version", version);
+                .setHost(hostName)
+                .setPort(port)
+                .setPath(properties.getAssetDownloadEndpoint())
+                .addParameter("repository", request.getRepository())
+                .addParameter("name", request.getName())
+                .addParameter("version", request.getVersion())
+                .addParameter("maven.extension", request.getMavenExtension());
 
-        return new HttpGet(builder.build());
+        return new HttpGet(uriBuilder.build());
+    }
+
+    private HttpGet buildSearchRequest(SearchApiRequest request) throws URISyntaxException {
+        var uriBuilder = new URIBuilder()
+                .setScheme(PROTOCOL)
+                .setHost(hostName)
+                .setPort(port)
+                .setPath(properties.getSearchEndpoint())
+                .addParameter("repository", request.getRepository())
+                .addParameter("group", request.getGroup())
+                .addParameter("version", request.getVersion());
+
+        return new HttpGet(uriBuilder.build());
     }
 }

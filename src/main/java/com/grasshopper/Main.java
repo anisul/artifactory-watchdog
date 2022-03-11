@@ -1,16 +1,17 @@
 package com.grasshopper;
 
-
-import com.grasshopper.client.NexusArtifactoryClient;
-import com.grasshopper.core.search.SearchApiResponse;
-
-import java.io.IOException;
-import java.net.URISyntaxException;
+import com.grasshopper.config.ApplicationContext;
+import com.grasshopper.service.DefaultArtifactoryService;
 
 public class Main {
-    public static void main(String[] args) throws URISyntaxException, IOException {
-        NexusArtifactoryClient client = new NexusArtifactoryClient();
-        SearchApiResponse apiResponse = client.search("maven-local", "com", "SNAPSHOT-1.0.0");
-        System.out.println(apiResponse.toString());
+    public static void main(String[] args) {
+        ApplicationContext applicationContext = new ApplicationContext();
+        DefaultArtifactoryService service =
+                new DefaultArtifactoryService(applicationContext.getApplicationProperties());
+
+        //following call will search
+        service.searchAsset("com", "RELEASE-1.0.0");
+        //following call will search and download (destination is configurable in properties file)
+        service.searchAndDownloadAsset("grasshopper", "RELEASE-1.0.0", ".java");
     }
 }

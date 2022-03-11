@@ -1,7 +1,6 @@
 package com.grasshopper.service;
 
 public interface ArtifactoryService {
-    /*
-    TODO: create interface method to consume api response
-    * */
+    void searchAsset(String group, String version);
+    void searchAndDownloadAsset(String name, String version, String mavenExtension);
 }
