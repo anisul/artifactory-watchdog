@@ -16,9 +16,9 @@ public class ApplicationContext {
 
     private void loadProperties() {
         try {
-            InputStream input = ApplicationContext.class.getClassLoader().getResourceAsStream("app.properties");
+            var input = ApplicationContext.class.getClassLoader().getResourceAsStream("app.properties");
 
-            Properties prop = new Properties();
+            var prop = new Properties();
             prop.load(input);
 
             applicationProperties.setNexusRepository(prop.getProperty("nexus.repository"));

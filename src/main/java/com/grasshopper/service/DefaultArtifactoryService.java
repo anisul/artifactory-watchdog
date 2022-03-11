@@ -3,6 +3,9 @@ package com.grasshopper.service;
 import com.grasshopper.client.NexusArtifactoryClient;
 import com.grasshopper.core.ApplicationProperties;
 import com.grasshopper.core.search.SearchApiRequest;
+import org.apache.commons.io.FileUtils;
+
+import java.io.File;
 
 public class DefaultArtifactoryService implements ArtifactoryService {
 
@@ -25,7 +28,7 @@ public class DefaultArtifactoryService implements ArtifactoryService {
             var searchApiResponse = nexusArtifactoryClient.search(request);
             System.out.println(searchApiResponse.toString());
         } catch (Exception e) {
-            //log.error("Error occurred while searching asset: " + e.getMessage());
+            // TODO:show error
         }
     }
 
@@ -39,9 +42,22 @@ public class DefaultArtifactoryService implements ArtifactoryService {
                 .mavenExtension(mavenExtension)
                 .build();
         try {
-            nexusArtifactoryClient.searchAndDownload(request, downloadPathPrefix);
+            var inputStream = nexusArtifactoryClient.searchAndDownload(request, downloadPathPrefix);
+
+            var targetFile = new File(getDownloadPath(
+                    downloadPathPrefix,
+                    request.getName(),
+                    request.getVersion(),
+                    request.getMavenExtension()
+            ));
+
+            FileUtils.copyInputStreamToFile(inputStream, targetFile);
         } catch (Exception e) {
-            //log.error("Error occurred while search and downloading asset: " + e.getMessage());
+            // TODO:show error
         }
+    }
+
+    private String getDownloadPath(String pathPrefix, String name, String version, String extension) {
+        return pathPrefix + name + "." + version + "." + extension;
     }
 }

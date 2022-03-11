@@ -68,25 +68,12 @@ public class NexusArtifactoryClient implements ArtifactoryClient {
     }
 
     @Override
-    public void searchAndDownload(SearchApiRequest searchApiRequest, String downloadPathPrefix) throws URISyntaxException, IOException {
+    public InputStream searchAndDownload(SearchApiRequest searchApiRequest, String downloadPathPrefix) throws URISyntaxException, IOException {
         var request = buildSearchAndDownloadRequest(searchApiRequest);
 
         var response = client.execute(target, request, getClientContext());
 
-        InputStream inputStream = response.getEntity().getContent();
-
-        File targetFile = new File(getDownloadPath(
-                downloadPathPrefix,
-                searchApiRequest.getName(),
-                searchApiRequest.getVersion(),
-                searchApiRequest.getMavenExtension()
-        ));
-
-        FileUtils.copyInputStreamToFile(inputStream, targetFile);
-    }
-
-    private String getDownloadPath(String pathPrefix, String name, String version, String extension) {
-        return pathPrefix + name + "." + version + "." + extension;
+        return response.getEntity().getContent();
     }
 
     private CredentialsProvider getCredentialsProvider() {
