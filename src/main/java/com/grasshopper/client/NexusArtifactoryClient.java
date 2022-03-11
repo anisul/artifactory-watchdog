@@ -1,6 +1,7 @@
 package com.grasshopper.client;
 
-import org.apache.http.HttpEntity;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grasshopper.core.search.SearchApiResponse;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -27,36 +28,41 @@ public class NexusArtifactoryClient implements ArtifactoryClient {
 
     private final CloseableHttpClient client;
     private final HttpHost target;
-    private final HttpClientContext clientContext;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public NexusArtifactoryClient() {
         target = new HttpHost(HOST_NAME, 8081, PROTOCOL);
 
-        CredentialsProvider provider = new BasicCredentialsProvider();
-        provider.setCredentials(
-                new AuthScope(target.getHostName(), target.getPort()),
-                new UsernamePasswordCredentials("admin", "admin123")
-        );
-
-        AuthCache authCache = new BasicAuthCache();
-        authCache.put(target, new BasicScheme());
-
-        clientContext = HttpClientContext.create();
-        clientContext.setAuthCache(authCache);
-
         client = HttpClientBuilder.create()
-                .setDefaultCredentialsProvider(provider)
+                .setDefaultCredentialsProvider(getCredentialsProvider())
                 .build();
     }
 
+    private HttpClientContext getClientContext() {
+        var authCache = new BasicAuthCache();
+        authCache.put(target, new BasicScheme());
+
+        var clientContext = HttpClientContext.create();
+        clientContext.setAuthCache(authCache);
+        return clientContext;
+    }
+
     @Override
-    public String search(String repository, String group, String version) throws URISyntaxException, IOException {
-        HttpGet request = buildSearchRequest(repository, group, version);
+    public SearchApiResponse search(String repository, String group, String version) throws URISyntaxException, IOException {
+        var request = buildSearchRequest(repository, group, version);
 
-        var response = client.execute(target, request, clientContext);
+        var response = client.execute(target, request, getClientContext());
 
-        HttpEntity entity = response.getEntity();
-        return entity != null ? EntityUtils.toString(entity) : null;
+        return mapper.readValue(EntityUtils.toString(response.getEntity()), SearchApiResponse.class);
+    }
+
+    private CredentialsProvider getCredentialsProvider() {
+        var credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(
+                new AuthScope(target.getHostName(), target.getPort()),
+                new UsernamePasswordCredentials("admin", "admin123")
+        );
+        return credentialsProvider;
     }
 
     private HttpGet buildSearchRequest(String repository, String group, String version) throws URISyntaxException {
